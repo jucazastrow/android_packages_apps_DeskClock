@@ -42,12 +42,14 @@ import android.widget.TextView;
 
 import java.util.Calendar;
 
+import android.provider.Settings;
+
 /**
  * Alarm Clock alarm alert: pops visible indicator and plays alarm
  * tone. This activity is the full screen version which shows over the lock
  * screen with the wallpaper as the background.
  */
-public class AlarmAlertFullScreen extends Activity {
+public class AlarmAlertFullScreen extends Activity implements AccelerometerListener.OrientationListener {
 
     // These defaults must match the values in res/xml/settings.xml
     private static final String DEFAULT_SNOOZE = "10";
@@ -58,6 +60,10 @@ public class AlarmAlertFullScreen extends Activity {
 
     protected Alarm mAlarm;
     private int mVolumeBehavior;
+
+    private AccelerometerListener mAccelerometerListener;
+    private int mLastOrientation = AccelerometerListener.ORIENTATION_FLIPDOWN;
+    private boolean mAlarmSnoozed = false;
 
     // Receives the ALARM_KILLED action from the AlarmKlaxon,
     // and also ALARM_SNOOZE_ACTION / ALARM_DISMISS_ACTION from other applications
@@ -81,6 +87,8 @@ public class AlarmAlertFullScreen extends Activity {
     @Override
     protected void onCreate(Bundle icicle) {
         super.onCreate(icicle);
+
+        if (mAccelerometerListener == null) mAccelerometerListener = new AccelerometerListener(this, this); 
 
         mAlarm = getIntent().getParcelableExtra(Alarms.ALARM_INTENT_EXTRA);
 
@@ -120,6 +128,15 @@ public class AlarmAlertFullScreen extends Activity {
     }
 
     private void updateLayout() {
+    	// quick and dirty...
+    	if (mAccelerometerListener != null && !mAccelerometerListener.isEnabled()) {
+    		mAlarmSnoozed = false;
+    		// option enabled?
+    		if (Settings.System.getInt(getContentResolver(), Settings.System.FLIPPING_DOWN_SNOOZES_ALARM, 1) == 1) {
+		        mAccelerometerListener.enable(true);
+		    }
+	    }
+
         LayoutInflater inflater = LayoutInflater.from(this);
 
         View contentView = inflater.inflate(R.layout.alarm_alert, null);
@@ -168,6 +185,8 @@ public class AlarmAlertFullScreen extends Activity {
 
     // Attempt to snooze this alert.
     private void snooze() {
+    	if (mAccelerometerListener != null && mAccelerometerListener.isEnabled()) mAccelerometerListener.enable(false);
+
         // Do not snooze if the snooze button is disabled.
         if (!findViewById(R.id.snooze).isEnabled()) {
             dismiss(false);
@@ -226,6 +245,9 @@ public class AlarmAlertFullScreen extends Activity {
     // Dismiss the alarm.
     private void dismiss(boolean killed) {
         Log.i(killed ? "Alarm killed" : "Alarm dismissed by user");
+
+    	if (mAccelerometerListener != null && mAccelerometerListener.isEnabled()) mAccelerometerListener.enable(false);
+
         // The service told us that the alarm has been killed, do not modify
         // the notification or stop the service.
         if (!killed) {
@@ -307,4 +329,16 @@ public class AlarmAlertFullScreen extends Activity {
         // so that the dialog is dismissed.
         return;
     }
+    
+    public void orientationChanged(int orientation) {
+        // are we being flipped down?
+       	if (orientation == AccelerometerListener.ORIENTATION_FLIPDOWN) {
+	        if ((mLastOrientation != AccelerometerListener.ORIENTATION_FLIPDOWN) && (!mAlarmSnoozed)) {
+				mAlarmSnoozed = true;
+				snooze();
+			}
+        }
+        mLastOrientation = orientation;
+    }
+    
 }
