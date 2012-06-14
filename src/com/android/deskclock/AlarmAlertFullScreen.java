@@ -63,6 +63,14 @@ public class AlarmAlertFullScreen extends Activity implements
 
 	protected Alarm mAlarm;
 	private int mVolumeBehavior;
+	
+	private SensorManager mSensorManager;
+	private Sensor mAccelerometer;
+	private float[] gravity = new float[3];
+	private int BUFFER = 5;
+	private float SENSITIVITY = 16;
+	private float average = 0;
+	private int i = 0;
 
 	// Receives the ALARM_KILLED action from the AlarmKlaxon,
 	// and also ALARM_SNOOZE_ACTION / ALARM_DISMISS_ACTION from other
@@ -117,17 +125,10 @@ public class AlarmAlertFullScreen extends Activity implements
 		filter.addAction(Alarms.ALARM_DISMISS_ACTION);
 		registerReceiver(mReceiver, filter);
 
-		msensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
-		rotationMatrix = new float[16];
-		accelData = new float[3];
-		magnetData = new float[3];
-		OrientationData = new float[3];
-		msensorManager.registerListener(this,
-				msensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER),
-				SensorManager.SENSOR_DELAY_UI);
-		msensorManager.registerListener(this,
-				msensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD),
-				SensorManager.SENSOR_DELAY_UI);
+		//AChep's Shake to snooze alarm
+		mSensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+		mAccelerometer = mSensorManager
+				.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
 	}
 
 	private void setTitle() {
@@ -275,11 +276,19 @@ public class AlarmAlertFullScreen extends Activity implements
 	@Override
 	protected void onResume() {
 		super.onResume();
+		mSensorManager.registerListener(this, mAccelerometer,
+				SensorManager.SENSOR_DELAY_GAME);
 		// If the alarm was deleted at some point, disable snooze.
 		if (Alarms.getAlarm(getContentResolver(), mAlarm.id) == null) {
 			Button snooze = (Button) findViewById(R.id.snooze);
 			snooze.setEnabled(false);
 		}
+	}
+	
+	@Override
+	protected void onPause() {
+		super.onPause();
+		mSensorManager.unregisterListener(this);
 	}
 
 	@Override
@@ -335,60 +344,25 @@ public class AlarmAlertFullScreen extends Activity implements
 
 	}
 
-	private SensorManager msensorManager;
-
-	private float[] rotationMatrix;
-	private float[] accelData;
-	private float[] magnetData;
-	private float[] OrientationData;
-
-	private int BUFFER = 8;
-	private int SENSITIVE = 40;
-	private int value[] = new int[2];
-	private int average[] = new int[2];
-	private int num = 0;
-
-	@Override
 	public void onSensorChanged(SensorEvent event) {
-		// TODO Auto-generated method stub
-		loadNewSensorData(event);
-		SensorManager.getRotationMatrix(rotationMatrix, null, accelData,
-				magnetData);
-		SensorManager.getOrientation(rotationMatrix, OrientationData);
-
-		if (num < BUFFER) {
-			value[1] = (int) Math.round(Math.abs(Math
-					.toDegrees(OrientationData[0]))
-					+ Math.abs(Math.toDegrees(OrientationData[1]))
-					+ Math.abs(Math.toDegrees(OrientationData[2])));
-			if (num > 0)
-				average[0] += Math.abs(value[0] - value[1]);
-			value[0] = value[1];
-			num += 1;
+		final float alpha = (float) 0.8;
+		float x = event.values[0]
+				- (gravity[0] = alpha * gravity[0] + (1 - alpha)
+						* event.values[0]);
+		float y = event.values[1]
+				- (gravity[1] = alpha * gravity[1] + (1 - alpha)
+						* event.values[1]);
+		float z = event.values[2]
+				- (gravity[2] = alpha * gravity[2] + (1 - alpha)
+						* event.values[2]);
+		if (i <= BUFFER) {
+			average += Math.abs(x) + Math.abs(y) + Math.abs(z);
+			i += 1;
 		} else {
-			average[0] /= BUFFER;
-			if ((Math.abs(average[0] - average[1]) > SENSITIVE)
-					& average[1] != 0)
-				dismiss(false);
-			average[1] = average[0];
-			num = 0;
-			value[1] = (int) Math.round(Math.abs(Math
-					.toDegrees(OrientationData[0]))
-					+ Math.abs(Math.toDegrees(OrientationData[1]))
-					+ Math.abs(Math.toDegrees(OrientationData[2])));
-		}
-	}
-
-	private void loadNewSensorData(SensorEvent event) {
-
-		final int type = event.sensor.getType();
-
-		if (type == Sensor.TYPE_ACCELEROMETER) {
-			accelData = event.values.clone();
-		}
-
-		if (type == Sensor.TYPE_MAGNETIC_FIELD) {
-			magnetData = event.values.clone();
+			if (average / BUFFER >= SENSITIVITY)
+				snooze();
+			average = 0;
+			i = 0;
 		}
 	}
 }
