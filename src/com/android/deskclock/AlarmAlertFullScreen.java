@@ -63,7 +63,7 @@ public class AlarmAlertFullScreen extends Activity implements
 
 	protected Alarm mAlarm;
 	private int mVolumeBehavior;
-	
+
 	private SensorManager mSensorManager;
 	private Sensor mAccelerometer;
 	private float[] gravity = new float[3];
@@ -125,7 +125,6 @@ public class AlarmAlertFullScreen extends Activity implements
 		filter.addAction(Alarms.ALARM_DISMISS_ACTION);
 		registerReceiver(mReceiver, filter);
 
-		//AChep's Shake to snooze alarm
 		mSensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
 		mAccelerometer = mSensorManager
 				.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
@@ -276,15 +275,15 @@ public class AlarmAlertFullScreen extends Activity implements
 	@Override
 	protected void onResume() {
 		super.onResume();
+		// If the alarm was deleted at some point, disable snooze.
 		mSensorManager.registerListener(this, mAccelerometer,
 				SensorManager.SENSOR_DELAY_GAME);
-		// If the alarm was deleted at some point, disable snooze.
 		if (Alarms.getAlarm(getContentResolver(), mAlarm.id) == null) {
 			Button snooze = (Button) findViewById(R.id.snooze);
 			snooze.setEnabled(false);
 		}
 	}
-	
+
 	@Override
 	protected void onPause() {
 		super.onPause();
