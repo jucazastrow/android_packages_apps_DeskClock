@@ -26,12 +26,12 @@ import android.media.MediaPlayer;
 import android.media.MediaPlayer.OnErrorListener;
 import android.media.RingtoneManager;
 import android.net.Uri;
-import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.Vibrator;
 import android.preference.PreferenceManager;
+import android.provider.Settings;
 import android.telephony.PhoneStateListener;
 import android.telephony.TelephonyManager;
 
@@ -45,6 +45,7 @@ public class AlarmKlaxon extends Service {
 	private static final String DEFAULT_ALARM_LIMIT = "30";
 	
     private static final long[] sVibratePattern = new long[] { 500, 500 };
+    private static final long[] sVibratePatternLite = new long[] { 1000, 100 };
 
     private boolean mPlaying = false;
     private Vibrator mVibrator;
@@ -53,6 +54,11 @@ public class AlarmKlaxon extends Service {
     private long mStartTime;
     private TelephonyManager mTelephonyManager;
     private int mInitialCallState;
+    
+    //Increasing volume
+    private MediaPlayer mGlobalPlayer = null;
+    private boolean mIncrVolumeEnabled;
+    private static final int DEFAULT_INCREASING_VOLUME_ENABLED = 0;
 
     // Internal messages
     private static final int KILLER = 1000;
@@ -87,6 +93,10 @@ public class AlarmKlaxon extends Service {
 
     @Override
     public void onCreate() {
+    	mIncrVolumeEnabled = Settings.System.getInt(
+				getContentResolver(), Settings.System.ACHEP_ALARM_INCREASING_VOLUME_ENABLED,
+				DEFAULT_INCREASING_VOLUME_ENABLED) == 1 ? true : false;
+    	
         mVibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
         // Listen for incoming calls to kill the alarm.
         mTelephonyManager =
@@ -216,7 +226,7 @@ public class AlarmKlaxon extends Service {
 
         /* Start the vibrator after everything is ok with the media player */
         if (alarm.vibrate) {
-            mVibrator.vibrate(sVibratePattern, 0);
+            mVibrator.vibrate(mIncrVolumeEnabled ? sVibratePatternLite : sVibratePattern, 0);
         } else {
             mVibrator.cancel();
         }
@@ -231,15 +241,39 @@ public class AlarmKlaxon extends Service {
             throws java.io.IOException, IllegalArgumentException,
                    IllegalStateException {
         final AudioManager audioManager = (AudioManager)getSystemService(Context.AUDIO_SERVICE);
+        mGlobalPlayer = player;
         // do not play alarms if stream volume is 0
         // (typically because ringer mode is silent).
         if (audioManager.getStreamVolume(AudioManager.STREAM_ALARM) != 0) {
-            player.setAudioStreamType(AudioManager.STREAM_ALARM);
-            player.setLooping(true);
-            player.prepare();
-            player.start();
+        	mGlobalPlayer.setAudioStreamType(AudioManager.STREAM_ALARM);
+        	if (mIncrVolumeEnabled)
+      	        mGlobalPlayer.setVolume(0, 0);  
+        	mGlobalPlayer.setLooping(true);      	
+        	mGlobalPlayer.prepare();
+        	mGlobalPlayer.start();
+        	if (mIncrVolumeEnabled)
+        		mIncrVolumeHandler.post(mIncrVolumeRunnable);
         }
     }
+    
+    //Increasing volume
+    private final Handler mIncrVolumeHandler = new Handler();
+    private final Runnable mIncrVolumeRunnable  = new Runnable(){
+    	
+    	private static final int DELAY = 2000;
+    	
+    	private float correntVolume = 0;
+    	
+	   @Override
+       public void run() {
+          if(!mPlaying || correntVolume==1 || mGlobalPlayer==null)
+             return; 
+          correntVolume += 0.02;
+	      mGlobalPlayer.setVolume(correntVolume, correntVolume);
+	      mIncrVolumeHandler.postDelayed(this, DELAY);
+          return; 
+       }
+    };
 
     private void setDataSourceFromResource(Resources resources,
             MediaPlayer player, int res) throws java.io.IOException {
@@ -259,6 +293,8 @@ public class AlarmKlaxon extends Service {
         if (Log.LOGV) Log.v("AlarmKlaxon.stop()");
         if (mPlaying) {
             mPlaying = false;
+        	if (mIncrVolumeEnabled)
+        		mIncrVolumeHandler.removeCallbacksAndMessages(mIncrVolumeRunnable);
 
             Intent alarmDone = new Intent(Alarms.ALARM_DONE_ACTION);
             sendBroadcast(alarmDone);
