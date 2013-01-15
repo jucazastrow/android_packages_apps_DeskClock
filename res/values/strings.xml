@@ -342,4 +342,9 @@
     <string name="use_dual_mode_button_on">Long-press the snooze button to dismiss the alarm</string>
     <string name="use_dual_mode_button_off">Separate snooze and dismiss buttons</string>
 
+    
+    
+    
+    <!-- AChep -->
+    <string name="achep_math_window_title">Are you awake?</string>
 </resources>

@@ -132,4 +132,7 @@
     <string name="use_dual_mode_button">Одна кнопка</string>
     <string name="use_dual_mode_button_on">Долгое нажатие на кнопке \"Отложить\", будет отключать будильник.</string>
     <string name="use_dual_mode_button_off">Разные кнопки \"Отложить\" и \"Отключить\".</string>
+    
+    <!-- AChep -->
+    <string name="achep_math_window_title">Вы проснулись?</string>
 </resources>

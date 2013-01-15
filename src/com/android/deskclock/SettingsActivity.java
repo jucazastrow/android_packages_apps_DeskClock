@@ -122,7 +122,6 @@ public class SettingsActivity extends PreferenceActivity
     		(ListPreference) findPreference(SCREENSAVER_TIMEOUT);
         screensaver_timeout.setSummary(screensaver_timeout.getEntry());
         screensaver_timeout.setOnPreferenceChangeListener(this);
-        
     }
 
 }
